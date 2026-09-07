@@ -2,16 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
 
 const LINE_BOT_API_URL = "https://api.line.me/v2/bot";
+const LINE_REPLY_URL = "https://api.line.me/v2/bot/message/reply";
 
 const headers = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${process.env.LINE_ACCESS_TOKEN}`,
 };
 
-const RICHMENU_DEFAULT = "richmenu-909fa08919cae7a9b4f0be94b0633afc";
-const RICHMENU_GREETING = "richmenu-d658ebb4a60aa9f920ff67c6b1bde5ab";
+const RICHMENU_DEFAULT = process.env.RICHMENU_DEFAULT || "";
+const RICHMENU_GREETING = process.env.RICHMENU_GREETING || "";
 
-// คำที่ user อาจพิมพ์มาใกล้เคียงกัน สำหรับแต่ละคำสั่ง
 const KEYWORDS_DEFAULT = [
     "ขอถอนตัว",
     "ถอนตัว",
@@ -41,7 +41,21 @@ const updateRichmenu = async (userId: string, richMenuId: string) => {
     return response;
 };
 
-// เช็คว่าข้อความ user มีคำใน keyword list ไหนอยู่หรือไม่ (แบบ contains ไม่ต้อง exact match)
+// ตอบกลับด้วย replyToken (ฟรี ไม่กินโควต้า push message)
+const replyMessage = async (replyToken: string, message: string) => {
+    const body = {
+        replyToken,
+        messages: [
+            {
+                type: "text",
+                text: message,
+            },
+        ],
+    };
+    const response = await axios.post(LINE_REPLY_URL, body, { headers });
+    return response;
+};
+
 const matchKeyword = (text: string, keywords: string[]) => {
     return keywords.some((keyword) => text.includes(keyword));
 };
@@ -71,21 +85,30 @@ export async function POST(req: NextRequest) {
     try {
         const lineEvent = events[0];
         const lineUserID = lineEvent.source.userId;
+        const replyToken = lineEvent.replyToken;
         let targetRichMenuId = "";
+        let replyText = "";
 
         if (lineEvent.type === "message" && lineEvent.message.type === "text") {
             const messageText = lineEvent.message.text.trim();
 
             if (matchKeyword(messageText, KEYWORDS_DEFAULT)) {
                 targetRichMenuId = RICHMENU_DEFAULT;
+                replyText = "ดำเนินการถอนตัวเรียบร้อยแล้วค่ะ";
             } else if (matchKeyword(messageText, KEYWORDS_GREETING)) {
                 targetRichMenuId = RICHMENU_GREETING;
+                replyText = "สมัครสมาชิกเรียบร้อยแล้วค่ะ ยินดีต้อนรับ 🎉";
             }
         }
 
         if (targetRichMenuId) {
-            const response = await updateRichmenu(lineUserID, targetRichMenuId);
-            console.log("=== LINE log", response.data);
+            const richmenuResponse = await updateRichmenu(lineUserID, targetRichMenuId);
+            console.log("=== LINE richmenu log", richmenuResponse.data);
+        }
+
+        if (replyText && replyToken) {
+            const replyResponse = await replyMessage(replyToken, replyText);
+            console.log("=== LINE reply log", replyResponse.data);
         }
 
         return NextResponse.json({ message: "OK" });
