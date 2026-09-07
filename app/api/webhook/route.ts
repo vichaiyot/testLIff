@@ -8,11 +8,30 @@ const headers = {
     Authorization: `Bearer ${process.env.LINE_ACCESS_TOKEN}`,
 };
 
-// กำหนด rich menu ID ตายตัวไว้เลย ไม่ต้องยิง API ไปถาม
-const RICHMENU_DEFAULT = "richmenu-eac5dc8a191afbe8f7675a73460efad1";
-const RICHMENU_GREETING = "richmenu-cf931e072287e7d39752e0761c420eed";
+const RICHMENU_DEFAULT = "richmenu-909fa08919cae7a9b4f0be94b0633afc";
+const RICHMENU_GREETING = "richmenu-d658ebb4a60aa9f920ff67c6b1bde5ab";
 
-// ผูก richmenu กับ userId
+// คำที่ user อาจพิมพ์มาใกล้เคียงกัน สำหรับแต่ละคำสั่ง
+const KEYWORDS_DEFAULT = [
+    "ขอถอนตัว",
+    "ถอนตัว",
+    "ยกเลิก",
+    "ยกเลิกสมาชิก",
+    "ออกจากระบบ",
+    "ไม่เอาแล้ว",
+    "ขอออก",
+];
+
+const KEYWORDS_GREETING = [
+    "สมัครสมาชิก",
+    "สมัคร",
+    "อยากสมัคร",
+    "สมัครเลย",
+    "เข้าร่วม",
+    "อยากเข้าร่วม",
+    "ลงทะเบียน",
+];
+
 const updateRichmenu = async (userId: string, richMenuId: string) => {
     const response = await axios.post(
         `${LINE_BOT_API_URL}/user/${userId}/richmenu/${richMenuId}`,
@@ -20,6 +39,11 @@ const updateRichmenu = async (userId: string, richMenuId: string) => {
         { headers }
     );
     return response;
+};
+
+// เช็คว่าข้อความ user มีคำใน keyword list ไหนอยู่หรือไม่ (แบบ contains ไม่ต้อง exact match)
+const matchKeyword = (text: string, keywords: string[]) => {
+    return keywords.some((keyword) => text.includes(keyword));
 };
 
 export async function POST(req: NextRequest) {
@@ -50,11 +74,11 @@ export async function POST(req: NextRequest) {
         let targetRichMenuId = "";
 
         if (lineEvent.type === "message" && lineEvent.message.type === "text") {
-            const text = lineEvent.message.text;
+            const messageText = lineEvent.message.text.trim();
 
-            if (text === "อยากกลับบ้าน") {
+            if (matchKeyword(messageText, KEYWORDS_DEFAULT)) {
                 targetRichMenuId = RICHMENU_DEFAULT;
-            } else if (text === "สวัสดี") {
+            } else if (matchKeyword(messageText, KEYWORDS_GREETING)) {
                 targetRichMenuId = RICHMENU_GREETING;
             }
         }
